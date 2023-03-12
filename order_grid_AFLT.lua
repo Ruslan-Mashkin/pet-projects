@@ -8,26 +8,34 @@ require("m_trader")                    --  импорт файла с библиотекой
 
 
 -- присванивание переменным начальных базовых значений торгового алгоритма
-Account = "L01-00000F00"               -- торговый счет
 Class_Code = "TQBR"                    -- класс торгуемого инструмента
 Sec_Code = "AFLT"                      -- код торгуемого инструмента
-firm_id = "MC0002500000"
-agent = "order_grid_"..Sec_Code
+agent = "order_grid_"..Sec_Code        -- имя бота
 g_lots = 1                             -- количество торгуемых лот
-is_run = true
-in_lot = 1                             -- бумаг в лоте
-spred = 1.2 						   -- спред между моими заявками в процентах
+target = 1                             -- цель
+commission = 0.2                       -- комиссия
+spred = target + commission 		   -- спред между моими заявками в процентах
 otstup = 0.2						   -- отступ от предыдущей заявки в процентах
+reserve = 0                                  -- число лотов которые нельзя продавать
+is_target_growth = true                      -- приращивание цели
+price_file_name = agent.."_"..g_lots..".txt" -- имя файла для сохранения последнего исполненого уровня 
+date_file_name = agent.."_".."date"..".txt"  -- имя файла для сохранения даты
+
+start_work_time = 100000
+finish_work_time = 234800
+
 price = 0
+is_run = true                                -- переменная для безконечного цикла
+pause_size = 3
 
-sled_zaavka_short = getParamEx(Class_Code, Sec_Code, "last").param_value
-sled_zaavka_long = sled_zaavka_short
-poslednaa_operacia=""
-step=tonumber(getParamEx(Class_Code, Sec_Code, "SEC_PRICE_STEP").param_value)
-
-file_name = agent.."_"..g_lots..".txt"
-finish_timer = 0
+finish_timer = 0                             -- переменные для таймера
 start_timer = 0
+
+sled_zaavka_short = getParamEx(Class_Code, Sec_Code, "last").param_value      -- уровень ближайшей продажи (инициализация)
+sled_zaavka_long = sled_zaavka_short                                          -- уровень ближайшей покупки (инициализация)
+poslednaa_operacia=""
+step=tonumber(getParamEx(Class_Code, Sec_Code, "SEC_PRICE_STEP").param_value) -- минимальный шаг цены
+
 
 function OnStop()
 --[[
@@ -41,7 +49,7 @@ function get_file_info()
 получение значения из файла
 ]]--
 	res = ""
-	f = io.open(getScriptPath().."\\"..file_name,"r+")	-- Открывает файл в режиме "чтения"
+	f = io.open(getScriptPath().."\\"..price_file_name,"r+")	-- Открывает файл в режиме "чтения"
 	for line in f:lines() do res = line end
 	return tonumber(res)
 end
@@ -52,10 +60,10 @@ function set_file_info(text)
 Записывается цена по которой должна была произойти сделка.
 Продажа записывается со знаком минус
 ]]--
-	f = io.open(getScriptPath().."\\"..file_name,"w")	-- Открывает файл в режиме "записи"
-	f:write(text)                                    	-- Запись в файл
-	f:flush()	                                        -- Сохраняет изменения в файле
-	f:close()                                       	-- Закрывает файл
+	f = io.open(getScriptPath().."\\"..price_file_name,"w")	-- Открывает файл в режиме "записи"
+	f:write(text)                                        	-- Запись в файл
+	f:flush()	                                            -- Сохраняет изменения в файле
+	f:close()                                           	-- Закрывает файл
 end
 
 function checking_file()
@@ -64,14 +72,51 @@ function checking_file()
 значение соответствует лучшей цене спроса
 ]]--
 	price = getParamEx(Class_Code, Sec_Code, "BID").param_value -- лучшая цена спроса
-	f = io.open(getScriptPath().."\\"..file_name,"r+")          -- Пытается открыть файл в режиме "чтения/записи"
+	f = io.open(getScriptPath().."\\"..price_file_name,"r+")    -- Пытается открыть файл в режиме "чтения/записи"
 	if f == nil then                                            -- Если файл не существует
-		f = io.open(getScriptPath().."\\"..file_name,"w")       -- Создает файл в режиме "записи"
+		f = io.open(getScriptPath().."\\"..price_file_name,"w")       -- Создает файл в режиме "записи"
 		f:write(price)                                          -- Запись в файл 
 		f:flush()                                               -- Сохраняет изменения в файле
 	end
 	f:close()                                                   -- Закрывает файл
 	sleep(1000)
+end
+
+function today_month_day() -- int
+--[[
+Текущее число месяца в системном времени
+]]--
+	return tonumber(os.date("%d")) 
+end
+
+function saved_date() -- int
+--[[
+ Возвращает сохраненное в файле число месяца
+]]--
+	res = nil
+	f = io.open(getScriptPath().."\\"..date_file_name,"r+")     -- Пытается открыть файл в режиме "чтения/записи"
+	if f == nil then                                            -- Если файл не существует
+		local today = today_month_day()                         -- сегодняшнее число месяца
+		f = io.open(getScriptPath().."\\"..date_file_name,"w")  -- Создает файл в режиме "записи"
+		f:write(today)                                          -- Запись в файл 
+		f:flush()                                               -- Сохраняет изменения в файле
+		res = today
+	else
+		for line in f:lines() do res = line end
+	end
+	f:close()                                                   -- Закрывает файл
+	return tonumber(res)
+end
+
+function save_date()
+--[[
+Запись числа месяца в файл.
+]]--
+	f = io.open(getScriptPath().."\\"..date_file_name,"w")	-- Открывает файл в режиме "записи"
+	f:write(today_month_day())                            	-- Запись в файл
+	f:flush()	                                            -- Сохраняет изменения в файле
+	f:close()                                           	-- Закрывает файл
+
 end
 
 function vrema() -- int
@@ -100,7 +145,7 @@ function work_time()  --  bool
 проверка вхождения в рамки рабочего времени
 ]]--
     res = false
-	if vrema() >= 100000 and vrema() < 234800 then
+	if vrema() >= start_work_time and vrema() < finish_work_time then
 	    res = true
 	end
 	return res
@@ -147,9 +192,18 @@ end
 
 function last_price()
 --[[
-текущая цена 
+текущая цена
+Если цена неадекватная, то берем лучшую цену из стакана
 ]]--
-	return tonumber(getParamEx(Class_Code, Sec_Code, "last").param_value)
+    res = tonumber(getParamEx(Class_Code, Sec_Code, "LAST").param_value)
+    if res == 0 or res == nil then
+	    if get_file_info() > 0 then
+		    res = tonumber(getParamEx(Class_Code, Sec_Code, "BID").param_value)
+		else
+		    res = tonumber(getParamEx(Class_Code, Sec_Code, "OFFER").param_value)
+		end
+	end
+	return res
 end
 
 function main()
@@ -159,6 +213,7 @@ function main()
     while  not work_time() do                   -- ожидаем открытия сессии
 	    sleep(1000)
 	end
+	
 	checking_file()                             -- проверяем наличие файла
 	first_orders()                              -- получаем начальные значения переменных для заявок
     while is_run do                             -- пока не стопнули
@@ -179,6 +234,10 @@ function main()
 			end                                 -- рабочее соединение
 		else
 			sleep(1000)
+			if vrema() > finish_work_time then
+				is_run = false
+			end
+
 		end                                     -- рабочее время
 	end                                         -- while is_run
 end                                             -- function main
@@ -191,11 +250,10 @@ function trading_logic()
 если цена актива упала ниже нашей заявки на покупку(произошла покупка)
 	то смещаем заявки вниз
 ]]--
-	if is_price_up() then
+	if is_price_up() == true then
 		move_up() 
 	end
-	
-	if is_price_down() then
+	if is_price_down() == true then
 		move_down()
 	end
 end
@@ -204,15 +262,21 @@ function first_orders()
 --[[
 Определение уровней для заявок в начале работы бота
 ]]--
-	price = get_file_info() -- считываем цену из файла
-	if price > 0 then
-		sled_zaavka_long = price
+	local x = get_file_info()                                           -- считываем цену из файла
+	price = math.abs(x)
+	if is_target_growth then                                            -- если хотим приращивать цель 
+		if today_month_day() ~= saved_date() then                       -- если запись в файле отличается от сегодняшнего числа
+			price = price + price / 100 * target                        -- сдвигаам цену вверх на размер цели
+			save_date()                                                 -- сохраняем сегодняшнее число
+		end
+	end
+	if x > 0 then
+		sled_zaavka_long = correct_price(price)
 		sled_zaavka_short = correct_price(price + price / 100 * spred)
 	end
 	
-	if get_file_info() < 0 then
-		price = price * -1
-		sled_zaavka_short = price
+	if x < 0 then
+		sled_zaavka_short = correct_price(price)
 		sled_zaavka_long = correct_price(price - price / 100 * spred)
 	end
 end
@@ -222,7 +286,7 @@ function correct_price(p)
 Корректировка расчетной (p) цены к виду, принимаемому системой
 ]]--
 	res = math.floor(p / step) * step
-	return tonumber(res)
+	return math.abs(tonumber(res))
 end
 
 function position()
@@ -254,17 +318,16 @@ function move_up()
 ]]--
 	if get_timer() == false then                                                        --  если таймер отработал
 		trader.DeleteOrder(agent,Class_Code,Sec_Code)                                   --  снимаем заявки
-		set_file_info(sled_zaavka_short * -1)		                                    --  записываем цену в файл
+		set_file_info(sled_zaavka_short * -1)		                                    --  записываем цену в файл со знаком минус
 		sleep(100)
-		
-		sled_zaavka_long = correct_price(sled_zaavka_short - sled_zaavka_short / 100 * spred)
+		sled_zaavka_long = correct_price(sled_zaavka_short - sled_zaavka_short / 100 * spred)	
 		sled_zaavka_short = correct_price(sled_zaavka_short + sled_zaavka_short / 100 * otstup)
 		
 		trader.kupit_po_cene(agent,Class_Code,Sec_Code,g_lots,sled_zaavka_long)         --  лимитная покупка
-		if position() > 0 then                                                          --  продаем только если есть что продавать
+		if position() > reserve then                                                          --  продаем только если есть что продавать
 			trader.prodat_po_cene(agent,Class_Code,Sec_Code,g_lots,sled_zaavka_short)   --  лимитная продажа
 		end
-		set_timer(3)                                                                    --  активируем таймер
+		set_timer(pause_size)                                                                    --  активируем таймер
 	end
 end
 
@@ -279,15 +342,14 @@ function move_down()
 		trader.DeleteOrder(agent,Class_Code,Sec_Code)                                   --  снимаем заявки
 		set_file_info(sled_zaavka_long)		                                            --  записываем цену в файл
 		sleep(100)
-		 
-		sled_zaavka_short = correct_price(sled_zaavka_long + sled_zaavka_long / 100 * spred)
+		sled_zaavka_short = correct_price(sled_zaavka_long + sled_zaavka_long / 100 * spred)	
 		sled_zaavka_long = correct_price(sled_zaavka_long - sled_zaavka_long / 100 * otstup)
 		
 		trader.kupit_po_cene(agent,Class_Code,Sec_Code,g_lots,sled_zaavka_long)         --  лимитная покупка
-		if position() > 0 then                                                          --  продаем только если есть что продавать
+		if position() > reserve then                                                          --  продаем только если есть что продавать
 			trader.prodat_po_cene(agent,Class_Code,Sec_Code,g_lots,sled_zaavka_short)   --  лимитная продажа
 		end
-		set_timer(3)                                                                    --  активируем таймер
+		set_timer(pause_size)                                                                    --  активируем таймер
 	end
 end
 
@@ -296,7 +358,8 @@ function is_price_up()  --  bool
 Находится ли цена выше текущего уровня продажи 
 ]]--
 	res = false
-	if last_price() > sled_zaavka_short then
+	last_pric = tonumber(last_price())
+	if last_pric > sled_zaavka_short then
 		res = true
 	end
 	return res
@@ -307,7 +370,8 @@ function is_price_down()  --  bool
 Находится ли цена ниже текущего уровня покупки 
 ]]--
 	res = false
-	if last_price() < sled_zaavka_long then
+	last_pric = tonumber(last_price())
+	if last_pric < sled_zaavka_long then
 		res = true
 	end
 	return res
