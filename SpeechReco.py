@@ -1,4 +1,10 @@
-
+"""
+Данный скрипт реализует пользовательский интерфейс для программы распознавания речи SpeechReco.
+В интерфейсе реализованы кнопки управления прослушиванием и озвучкой распознанного текста.
+При запуске скрипта создается окно, в котором отображается текущее состояние функций программы и
+которое позволяет взаимодействовать с программой. В фоновом потоке запускается алгоритм непрерывного
+прослушивания аудиосигнала и распознавания речи в текст.
+"""
 # Импортируем библиотеки
 import speech_recognition as sr
 import pyautogui as pag
@@ -59,9 +65,10 @@ def on_closing():
         background_thread.join()
         root.destroy()
         root.quit()
-    except Exception as e:
+    except Exception as exc:
         root.quit()
-        print('on_closing  '+e)
+        print('on_closing  ' + str(exc))
+
 
 # Объявляем функции для кнопок
 def button_play_callback():
@@ -238,8 +245,6 @@ def background_task():
         keyboard.press(pynput.keyboard.Key.delete)
         keyboard.release(pynput.keyboard.Key.delete)
 
-
-
     def commands(txt):
         """
         НАЗВАНИЕ
@@ -259,7 +264,7 @@ def background_task():
             'stop': ['остановись', 'выключись', 'хватит'],
             'dubbing_play': ['включи озвучку', 'озвучивай'],
             'dubbing_stop': ['выключи озвучку', 'отключи озвучку', 'перестань говорить', 'хватит говорить'],
-            'clean': ['очистить текст', 'очисти поле', 'очистить поле','удалить текст', 'удали текст', 'очисти текст'],
+            'clean': ['очистить текст', 'очисти поле', 'очистить поле', 'удалить текст', 'удали текст', 'очисти текст'],
             'pause': ['сделай паузу', 'останови запись', 'пауза', 'паузу', 'подожди'],
             'play': ['включись', 'начни запись', 'записывай', 'продолжи', 'продолжим']
         }
@@ -338,8 +343,8 @@ def background_task():
                 # Распознаем аудио-данные
                 text = (r.recognize_google(audio_data, language='ru-RU')).lower()
         # Если произошла ошибка, выводим ее
-        except Exception as e:
-            print('Не распознано', e)
+        except Exception as exc:
+            print('Не распознано', exc)
             text_in_label('Не распознано')
 
         # Выводим распознанную фразу на экран
@@ -369,7 +374,6 @@ def background_task():
             return
 
 
-
 if __name__ == '__main__':
     try:
         # Переключаемся на английскую раскладку
@@ -387,9 +391,18 @@ if __name__ == '__main__':
 
         # Создаем кнопки
         width = 33
-        button_play = tk.Button(root, text="Включить прослушивание", command=button_play_callback,  width=width)
-        button_pause = tk.Button(root, text="Приостановить прослушивание", command=button_pause_callback,  width=width)
-        button_voiceover_on = tk.Button(root, text="Включить озвучку", command=button_voiceover_on_callback,  width=width)
+        button_play = tk.Button(root,
+                                text="Включить прослушивание",
+                                command=button_play_callback,
+                                width=width)
+        button_pause = tk.Button(root,
+                                 text="Приостановить прослушивание",
+                                 command=button_pause_callback,
+                                 width=width)
+        button_voiceover_on = tk.Button(root,
+                                        text="Включить озвучку",
+                                        command=button_voiceover_on_callback,
+                                        width=width)
         button_voiceover_off = tk.Button(root,
                                          text="Приостановить озвучку",
                                          command=button_voiceover_off_callback,
