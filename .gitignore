@@ -1,0 +1,1 @@
+Nothing should be ignored in this case. The changes consist only of source/config files (.gitignore, calculator.py, README.md) with no build artifacts, dependencies, or temporary files present.
